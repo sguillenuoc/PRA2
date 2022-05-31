@@ -20,258 +20,6 @@ output:
 knitr::opts_chunk$set(eval=T, echo=T)
 ```
 
-******
-# Recursos
-******
-
-El desarrollo de la práctica se fundamenta con el material didáctico visto durante el curso:
-
-* Calvo M., Subirats L., Pérez D. (2019). Introducción a la limpieza y análisis de los datos. Editorial UOC.
-*  Megan Squire (2015). Clean Data. Packt Publishing Ltd
-
-El conjunto de datos utilizado está publicado en el repositorio Kaggle y accesible a través de la siguiente url:
-
-* [Titanic: Machine Learning from Disaster.](https://www.kaggle.com/c/titanic "Titanic Dataset")
-
-******
-# Objetivo y presentación del caso
-******
-
-La actividad se centra en el tratamiento de un dataset. En primer lugar, tendremos una fase de estudio previo para conocer cómo son nuestros datos, su estructura y su comportamiento. Una segunda fase de preparación, dónde aplicaremos la técnicas necesarias para la adecuación de los datos para la siguiente fase de análisis y, finalmente, y extraeremos conclusiones.
-
-El dataset elegido tiene información sobre los pasajeros que viajaba abordo del Titanic. Como se detalla en el link de Kaggle, el dataset corresponde a una competición activa donde se debe desarrollar un modelo capaz de predecir la supervivencia de los pasajeros. Por ello, disponemos de tres datasets:
-
-* train.csv que sería el conjunto de datos para diseñar nuestro algoritmo, el cual dispone de la variable _Survived_ que identifica si sobrevivió o no al hundimiento.
-* test.csv que sirve para validar la calidad de nuestro modelo.
-* gender_submission.csv que identifica la supervivencia de cada uno de los pasajeros.
-
-
-# Análisis inicial y exploración de los datos
-
-Esta fase inicial tiene como objetivo conocer profundamente los datos tanto en su formato como contenido.
-Empezamos haciendo un breve revisión de los datasets; número de registros, tipos de datos, distribuciones de las variables..
-
-Para ello cargamos los datos de los ficheros en la variable _data_.
-Primero leeremos el fichero train.csv
-
-```{r message= FALSE, warning=FALSE}
-dataTrain<-read.csv("./data/train.csv",header=T,sep=",")
-attach(dataTrain)
-dim(dataTrain)
-head(dataTrain,3)
-```
-***
-
-Completamos el dataset de Test con la variable _Survived_, por lo que, hacemos un merge con los otros ficheros, test y gender_submission. 
-Verifición del tamaño de nuestros conjuntos de datos y sus variables.
-
-```{r echo=TRUE, warning=FALSE, message=FALSE}
-dataTest <-read.csv("./data/test.csv",header=T,sep=",")
-dataReferencias <-read.csv("./data/gender_submission.csv",header=T,sep=",")
-```
-
-```{r echo=FALSE}
-dim(dataTest)
-names(dataTest)
-
-names(dataReferencias)
-dim(dataTest)
-```
-
-```{r}
-dataTest <- merge(dataTest, dataReferencias, by="PassengerId")
-```
-
-```{r echo=FALSE}
-dim(dataTest)
-head(dataTest,3)
-```
-
-y finalmente unificamos nuestros dataset en un único dataframe, _data_
-
-```{r}
-data <- rbind(dataTrain, dataTest)
-dim(data)
-head(data,3)
-```
-
-Verificamos la consistencia de nuestro dataset. 
-
-Comprobamos si existen duplicados, basándonos en el identificador del pasajero.
-
-```{r}
-#Obtener los valores repetidos para la variable PassengerId
-duplicados <- unique(data[duplicated(data$PassengerId, fromLast=TRUE),])
-table(duplicados$PassengerId)
-```
-
-
-¿Qué variables componen nuestro dataset?
-
-```{r echo=FALSE}
-str(data)
-```
-
-Nuestra muestra contiene un total de 1309 registros y 12 variables distintas; 5 de tipo carácter, 5 de tipo integer y 2 numéricas.
-
-Las variables del conjunto de datos son:
-
-+ **PassengerId**: Identificador del pasajero o tripulante.
-+ **Survived**: Varible que identifica si sobrevive o no al hundimiento. Valores posibles: "0-Fallece", "1-Sobrevive"
-+ **Pclass**: hace referencia a la clase en la que viajaban los pasajeros (1ª, 2ª, 3ª).
-+ **Name**: Nombre del pasajero.
-+ **Sex**: Género del individuo. Valores posibles: male, female.
-+ **Age**: Edad del individuo.
-+ **SibSp**: Hermanos/as y conyuges a bordo.
-+ **Parch**: Padres e hijos.
-+ **Ticket**: Número de billete.
-+ **Fare**: Tarifa del billete.
-+ **Cabin**: Número de cabina.
-+ **Embarked**: Puerto de embarque. Valores posibles: "C = Cherbourg", "Q = Queenstown" o "S = Southampton"
-
-
-Veamos algunas métricas de estas variables, sus valores máximos, mínimos, medias...
-
-```{r echo=FALSE}
-summary(data)
-```
-
-Basándonos en las métricas anteriores, ya podemos extraer algunas conclusiones:
-
-* Hay un pequeño porcentaje de supervivientes.
-* La mayoría de los pasajeros viajan en tercera clase.
-* En general son personas adultas entre 21 y 39 años pero hay muchos valores desconocidos
-* ¿Viajan solos?
-* El coste del pasaje más habitual de 14.45, siendo el más caro de 512.33
-* En la muestra hay muchos más varones que mujeres, 577 y 344 respectivamente.
-* La mayoría de los pasajeros partieron de Southampton
-
-
-## Valores vacíos
-
-Examinemos si hay valores missing.
-En caso de haberlos, habría que tomar decisiones para tratarlos adecuadamente y en aquellos casos que el porcentaje sea muy elevado deberemos descartar la variable. De igual manera, también eliminaríamos las observaciones con un número alto de valores vacíos.
-
-```{r}
-colSums(is.na(data))
-colSums(data=="")
-```
-
-Observamos que debemos tratar las variables _Age_, _Fare_, _Cabin_ y _Embarked_.
-
-La variable _Cabin_ la descartamos ya que tiene un porcentaje alto de datos vacios, de las 1309 observaciones disponibles 1014 no disponemos el datos.
-
-```{r}
-data$Cabin<-NULL
-```
-
-Hay dos pasajeros de los cuales no consta el puerto de partida, variable Embarked vacía. Para este caso, les asignamos el origen más repetido, que como hemos comentado es Southampton
-
-```{r}
-data$Embarked[data$Embarked==""]<-"S"
-```
-
-***
-**nota:** `tratar los valores de las variables _Fare_ y _Age_ por los valores próximos a sus vecinos`
-
-
-## Valores atípicos {.tabset}
-
-Examinemos las variables en busca de valores atípicos. 
-
-Nos ayudaremos de una representación gráfica como puede ser *boxplot*, cada variable será diferente pero consideraremos atípico aquellos valores que se encuentren a 1.5 veces de uno de los cuartiles.
-
-### Pclass {-}
-
-```{r}
-boxplot(data$Pclass, col = "red")
-```
-
-### Age {-}
-
-```{r}
-boxplot(data$Age, col = "palegreen")
-```
-
-### SibSp {-}
-
-```{r}
-boxplot(data$SibSp, col = "blue")
-```
-
-```{r}
- primer_cuartil<-quantile(data$SibSp, prob = 0.25, na.rm = TRUE)
- tercer_cuartil<-quantile(data$SibSp, prob = 0.75, na.rm = TRUE)
- rango_intercuartilico<-IQR(data$SibSp)
-
- menoresDe <- primer_cuartil - (1.5*rango_intercuartilico)
- mayoresDe <- tercer_cuartil + (1.5*rango_intercuartilico)
-
- sprintf("El rango de valores que limitan el rango es: %f - %f", menoresDe, mayoresDe )
-```
-
-### Parch {-}
-
-```{r}
-boxplot(data$Parch, col = "orange")
-```
-
-### Fare {-}
-
-```{r}
-boxplot(data$Fare, col = "orange")
-```
-
-
-## Normalización, categorización y selección de variables
-
-Factorizamos la variable _Sex_ y la variable _Embarked_
-
-```{r}
-data$Sex <- as.factor(data$Sex)
-data$Embarked <- as.factor(data$Embarked)
-```
-
-Categorizamos las variables numéricas, _Age_ y _Fare_, en rangos/tramos de valores
-
-**nota:** `igual debemos normalizarlos: data$Age<-(data$Age - min(data$Age)) / (max(data$Age) - min(data$Age))`
-
-
-```{r}
-data["Age"] <- cut(data$Age, breaks = c(0,20,40,60,80,100), labels = c("0-19", "20-39","40-59","60-79",">79"))
-data$Age <- as.factor(data$Age)
-
-data["Fare"] <- cut(data$Fare, breaks = c(0,10,20,30,40,50,60,70,100), labels = c("0-9", "10-19", "20-29", "30-39","40-49","50-59","60-69","70-79"))
-data$Fare <- as.factor(data$Fare)
-```
-
-Transformamos los valores de la varible _Survived_ para que sea "S" para los supervivientes y "N" para identificar los no supervivientes
-
-```{r}
-data$Survived[data$Survived == 1]<-'S'
-data$Survived[data$Survived == 0]<-'N'
-data$Survived <- as.factor(data$Survived)
-```
-
-A priori, podemos descartar las variables _Ticket_, _Name_ y _PassengerId_  ya que no van a formar parte de nuestros análisis y, de esta forma, utilizaremos un conjunto de datos menor.
-
-```{r}
-data$Name<-NULL
-data$Ticket<-NULL
-data$PassengerId<-NULL
-```
-
-Tras las transformaciones realizadas, el conjunto de datos presenta el siguiente aspecto:
-
-```{r echo=FALSE}
-str(data)
-```
-
-
-## Distribución de las variables
-
-Utilizaremos gráficos para la representación de los datos y así aportar un mayor enriquecimiento del conocimiento sobre ellos.
-
 Requeriremos de los paquetes ggplot2, gridExtra y grid de R. 
 
 ```{r echo=FALSE, message= FALSE, warning=FALSE}
@@ -292,6 +40,361 @@ if(!require(gridExtra)){
 
 ```
 
+******
+# Descripción del dataset
+******
+
+Para el desarrollo de esta práctica se ha optado por la elección del dataset: "Titanic: Machine Learning from Disaster (https://www.kaggle.com/c/titanic)". Este dataset contiene información de uno de los naufragios más conocido de la historia, donde se tienen datos relativos a sus pasajeros como edad, sexo, clase en que viajaban, ... Este dataset es muy utilizado para el entrenamiento de algoritmos, y actualmente forma parte de una competición de Kaggle. 
+
+
+A partir del análisis de este dataset, se pretende averiguar si existe alguna variable que influya en la supervivencia o no.Así como conocer qué tipo de personas en bases a sus características físicas y las de su viaje tenían más probabilidades se sobrevivir.
+
+La actividad se centra en el tratamiento de un dataset. En primer lugar, tendremos una fase de estudio previo para conocer cómo son nuestros datos, su estructura y su comportamiento. Una segunda fase de preparación, dónde aplicaremos la técnicas necesarias para la adecuación de los datos para la siguiente fase de análisis y, finalmente, y extraeremos conclusiones.
+
+
+Disponemos de tres conjuntos de datos que se describen a continuación:
+
+
+* train.csv: Es el que debe usarse para construir los modelos de aprendizare automático. Se porporciona el resultado de la variable _Survived_ que incida la superivivencia de cada pasajero que es sobre la que se va a llevar a cabo la práctica.
+
+* test.csv: Es el que debe usarse para ver la precisión del modelo generado con el dataset anterior. No se proporciona la variable _Survived_.
+
+* gender_submission.csv: Es el que contiene los valores de la variable _Survived_ para cada pasajero.
+
+
+Disponemos de un total de 891 muestras y 12 variables distintas; 5 de tipo carácter, 5 de tipo integer y 2 numéricas. A continuación, se va a llevar a cabo la descripción de los atributos que forman parte del dataset:
+
+
++ **PassengerId**: Identificador del pasajero o tripulante.
+
++ **Survived**: Indica si el pasajero o tripulante ha sobrevivido. El valor _0_ indica que no ha sobrevivido y el _1_ que sí. Es la variable que se trata de predecir en el conjunto de test.
+
++ **Pclass**: Es la clase en la que ha navegado el pasajero. Existen los siguientes valores: _1_ es primera clase, _2_ es segunda clase y _3_ es tercera clase.
+
++ **Name**: Nombre completo del pasajero.
+
++ **Sex**: Género del pasajerondividuo. Existen los siguientes Valores: _male_ para hombre y _female_ para mujer.
+
++ **Age**: Edad en años del pasajero.
+
++ **SibSp**: Número de hermanos o cónyuges a bordo del barco.
+
++ **Parch**: Número de padres o hijos a bordo del barco.
+
++ **Ticket**: El indentificador del ticket.
+
++ **Fare**: Tarifa del billete.
+
++ **Cabin**: Número de cabina.
+
++ **Embarked**: Puerto en el que ha embarcado el pasajero. Exiten los siguientes valores: _C_ corresponde a Cherbourg, _Q_ corresponde a Queenstown y _S_ corresponde a Southampton.
+
+
+******
+# Integración y selección de los datos de interés a analizar.
+******
+
+# Lectura del dataset
+
+En este aparatado se va a llevar acabo la integración y la selección de los datos que van a ser de interés para llevar a cabo el análisis.
+
+Como se ha comentado en el apartado anterior, hay tres conjunto de datos. Cada conjunto tiene un identificador único que es la variable _PassengerId_ que permite relacionar 
+
+```{r}
+# Carga de los diferentes datasets
+
+dataTrain<-read.csv("./data/train.csv",header=T,sep=",")
+dataTest <-read.csv("./data/test.csv",header=T,sep=",")
+dataReferencias <-read.csv("./data/gender_submission.csv",header=T,sep=",")
+
+
+# Unimos los tres dataset en uno
+
+dataTest <- merge(dataTest, dataReferencias, by="PassengerId")
+
+data <- rbind(dataTrain, dataTest)
+
+```
+
+Una vez se ha unificado los datos, se inspeccionará el conjuntos de datos: 
+
+```{r}
+# Observamos la estructura de los datos
+
+str(data)
+
+```
+
+```{r}
+summary(data)
+```
+
+# Selección de datos
+
+En el siguiente paso se eliminaran aquellas columnas que no contengan información útil para el desarrollo de esta práctica.
+
+```{r}
+# Eliminamos las columnas
+
+data <- subset(data, select = -c(PassengerId, Ticket, Cabin))
+
+```
+
+
+******
+# Limpieza de los datos.
+******
+
+# Varible _Name_
+
+En primer lugar analizaremos la variables _Name_:
+
+```{r}
+data$Title <- gsub('(.*, )|(\\..*)', '', data$Name)
+rare_title <- c('Dona', 'Lady', 'the Countess','Capt', 'Col', 'Don',
+'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer')
+data$Title[data$Title == 'Mlle'] <- 'Miss'
+data$Title[data$Title == 'Ms'] <- 'Miss'
+data$Title[data$Title == 'Mme'] <- 'Mrs'
+data$Title[data$Title %in% rare_title] <- 'Rare Title'
+data$Title <- as.factor(data$Title)
+data$Surname <- sapply(data$Name,
+function(x) strsplit(x, split = '[,.]')[[1]][1])
+
+data$Surname <- as.factor(data$Surname)
+```
+
+
+# Variable _SibSp_ y _Parch_
+
+En este apartado se combinarán la variables _SibSp_ y _Parch_ para crear una nueva variables llamada _Famsize_.
+
+```{r}
+
+data$Famsize <- data$SibSp + data$Parch + 1
+```
+
+```{r}
+
+data$Fsize[data$Famsize == 1] <- 'singleton'
+data$Fsize[data$Famsize < 5 & data$Famsize > 1] <- 'small'
+data$Fsize[data$Famsize > 4] <- 'large'
+
+data$Fsize <- as.factor(data$Fsize)
+
+
+mosaicplot(table(data$Famsize, data$Survived), main='Family Size by Survival', shade=TRUE)
+```
+
+
+
+# Variable _Survived_
+
+
+En primer lugar se convertirán a factores las variables _Survived_, _PClass_, _Sex_ y _Embarked_.
+
+```{r}
+
+data$Survived <- as.factor(data$Survived)
+
+
+```
+
+
+# Variable _PClass_
+
+```{r}
+data$Pclass <- as.factor(data$Pclass)
+
+```
+
+
+
+
+# Variable _Sex_
+
+```{r}
+data$Sex <- as.factor(data$Sex)
+
+```
+
+
+
+
+
+# Variable _Embarked_
+
+
+
+```{r}
+data$Embarked <- as.factor(data$Embarked)
+
+
+```
+
+
+
+# Variable _Fare_
+
+
+```{r}
+
+```
+
+
+
+
+## Valores vacios y outliers
+
+En este apartado se analizará si las variables contienen valores nulos o incompletos.
+
+```{r}
+col_mis <- colSums(is.na(data) | data=="")
+print(col_mis)
+
+```
+
+A continuación se trataran las variables con valores nulos o incompletos.
+
+# Variable _Age_
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+# Varible _Fare_
+
+Antes de imputar los valores perdidos de la varible _Fare_ se comprobará las características de estos valores.
+
+```{r}
+
+miss_fare_index <- which(is.na(data$Fare))
+miss_fare <- data[miss_fare_index,]
+miss_fare
+
+```
+
+
+Se visualiza los valores de la variable _Fare_ para los otros pasajeros que comparten los mismo valores para las variables _PClass_ y _Embarked_. 
+
+
+```{r}
+
+ggplot(data[data$Pclass == '3' & data$Embarked == 'S',],
+       aes(x = Fare)) +
+  geom_density(fill = '#99d6ff', alpha=0.4) +
+  geom_vline(aes(xintercept=median(Fare, na.rm=T)),
+             colour='red', linetype='dashed', lwd=1) +
+  scale_x_continuous(labels=dollar_format()) +
+  theme_few()
+```
+
+
+Después de visualizar las gráfica anterior se puede dar por válido el reemplezar el valor perdido de la variable _Fare_  por la mediana de su clase y embarque.
+
+
+```{r}
+data$Fare[1044] <- median(data[data$Pclass == '3' & data$Embarked == 'S', ]$Fare, na.rm = TRUE)
+
+```
+
+
+
+# variable _Embarked_
+
+Antes de imputar los valores perdidos de la variable _Embarked_ se comprobará las características de estos valores.
+
+```{r}
+
+miss_embark_index <- which(is.na(data$Embarked))
+miss_embark <- data[miss_embark_index,]
+miss_embark
+
+```
+
+
+Se visualiza los valores de la variable _Fare_ para los otros pasajeros que comparten los mismo valores para las variables _PClass_ y _Fare_.
+
+```{r}
+
+
+ggplot(data[!is.na(data$Embarked),], aes(x = Embarked, y = Fare, fill = factor(Pclass))) +
+  geom_boxplot() +
+  geom_hline(aes(yintercept=80),
+             colour='red', linetype='dashed', lwd=2) +
+  scale_y_continuous(labels=dollar_format()) +
+  theme_few()
+```
+
+Después de visualizar las gráfica anterior se puede dar por válido el reemplezar el valor perdido de la variable _Embarked_  por el valor _C_.
+
+```{r}
+
+data$Embarked[miss_embark_index] <- 'C'
+
+```
+
+## valores extremos
+
+
+En este apartado se analizarán los valores extremos de las variables _Age_, _Fare_, _SibSp_, _Parch_ y _Fsize_.
+
+# variable _Age_
+
+```{r}
+boxplot(data$Age, main="Box plot", col="gray")
+
+```
+
+
+Se puede observar que los valores extremos están en un rango normal, ningún pasajero es menor que 0 o mayor que 100.
+
+
+# Variable _Fare_
+
+```{r}
+
+boxplot(data$Fare, main="Box plot", col="gray")
+```
+
+```{r}
+
+ggplot(data, aes(x = Pclass, y = Fare)) +
+  geom_boxplot() +
+  geom_hline(aes(yintercept=80),
+             colour='red', linetype='dashed', lwd=2) +
+  scale_y_continuous(labels=dollar_format()) +
+  theme_few()
+
+```
+
+
+# Variable _SibSp_
+
+```{r}
+
+boxplot(data$SibSp, main="Box plot", col="gray")
+```
+
+# Variable _Parch_
+
+```{r}
+boxplot(data$Parch, main="Box plot", col="gray")
+
+```
+
+
+
+
+## Distribución de las variables
+
 Representamos la distribución de las variables y donde se ve reflejado las afirmaciones extraídas sobre los datos anteriores.  
 
 
@@ -300,9 +403,8 @@ grid.newpage()
 
   plotbyClass<-ggplot(data,aes(Pclass))+geom_bar(fill = "#377EB8") +labs(x="", y="Pasajeros")+ggtitle("Clase")
   plotbySex<-ggplot(data,aes(Sex))+geom_bar(fill = "#377EB8") +labs(x="", y="Pasajeros")+ggtitle("Género")
-  plotbyEmbarked<-ggplot(data,aes(Embarked))+geom_bar(fill = "#377EB8") +labs(x="", y="Pasajeros")+ggtitle("Origen")
   
-grid.arrange(plotbyClass, plotbySex, plotbyEmbarked, ncol=3)
+grid.arrange(plotbyClass, plotbySex,ncol=2)
 
 ```
 
@@ -327,7 +429,6 @@ grid.arrange(plotbySibSp, plotbyParch,ncol=2)
 
 ```
 
-
 A continuación, se muestra la distribución de la varible supervivencia, que además, nos interesa describir su relación con el resto de variables. 
 
 ```{r}
@@ -339,9 +440,6 @@ Para ello, por un lado graficaremos mediante diagramas de barras la cantidad de 
 Por otro lado, para obtener los datos que estamos graficando utilizaremos el comando table para dos variables que nos proporciona una tabla de contingencia.
 
 ## Relación con la variable supervivencia {.tabset}
-
-
-**nota::** `revisar los datos porque cambian al aplicar las transformaciones de valores vacíos...`
 
 De estos gráficos obtenemos información muy valiosa que complementamos con las tablas de contingencia (listadas abajo). 
 
@@ -403,8 +501,6 @@ prop.table(tablaSex, margin = 1)
 
 ## Test estadísticos de significancia
 
-**nota:** `para revisar`
-
 Los resultados anteriores muestran los datos de forma descriptiva, podemos añadir algún test estadístico para validar el grado de significancia de la relación. La librería "DescTools" nos permite instalarlo fácilmente.
 
 
@@ -446,3 +542,14 @@ Nuestro objetivo es crear un árbol de decisión que permita analizar qué tipo 
 
 
 
+
+******
+# Recursos
+******
+
+
+*  Calvo M., Subirats L., Pérez D. (2019). Introducción a la limpieza y análisis de los datos. Editorial UOC.
+
+*  Megan Squire (2015). Clean Data. Packt Publishing Ltd
+
+*  Ramos Lorenzo, C. (2019). RPubs - Logistic Regressión. https://rpubs.com/MrCristianrl/500969
