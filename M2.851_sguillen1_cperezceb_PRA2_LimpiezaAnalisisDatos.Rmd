@@ -37,7 +37,30 @@ if(!require(gridExtra)){
     install.packages('gridExtra', repos='http://cran.us.r-project.org')
     library(gridExtra)
 }
-
+if(!require(mice)){
+    install.packages('mice', repos='http://cran.us.r-project.org')
+    library(mice)
+}
+if(!require(ggthemes)){
+    install.packages('ggthemes', repos='http://cran.us.r-project.org')
+    library(ggthemes)
+}
+if(!require(scales)){
+    install.packages('scales', repos='http://cran.us.r-project.org')
+    library(scales)
+}
+if(!require(GGally)){
+    install.packages('GGally', repos='http://cran.us.r-project.org')
+    library(GGally)
+}
+if(!require(kableExtra)){
+    install.packages('kableExtra', repos='http://cran.us.r-project.org')
+    library(kableExtra)
+}
+if(!require(randomForest)){
+    install.packages('randomForest', repos='http://cran.us.r-project.org')
+    library(randomForest)
+}
 ```
 
 ******
@@ -183,7 +206,7 @@ data$Fsize[data$Famsize > 4] <- 'large'
 data$Fsize <- as.factor(data$Fsize)
 
 
-mosaicplot(table(data$Famsize, data$Survived), main='Family Size by Survival', shade=TRUE)
+mosaicplot(table(data$Fsize, data$Survived), main='Family Size by Survival', shade=TRUE)
 ```
 
 
@@ -221,7 +244,6 @@ data$Sex <- as.factor(data$Sex)
 
 
 
-
 # Variable _Embarked_
 
 
@@ -231,16 +253,6 @@ data$Embarked <- as.factor(data$Embarked)
 
 
 ```
-
-
-
-# Variable _Fare_
-
-
-```{r}
-
-```
-
 
 
 
@@ -254,18 +266,7 @@ print(col_mis)
 
 ```
 
-A continuación se trataran las variables con valores nulos o incompletos.
-
-# Variable _Age_
-
-
-
-```{r}
-
-
-
-```
-
+A continuación se trataran las variables con valores nulos o incompletos de las diferetnes variables.
 
 
 
@@ -297,7 +298,7 @@ ggplot(data[data$Pclass == '3' & data$Embarked == 'S',],
 ```
 
 
-Después de visualizar las gráfica anterior se puede dar por válido el reemplezar el valor perdido de la variable _Fare_  por la mediana de su clase y embarque.
+Después de visualizar las gráfica anterior se puede dar por válido el reemplazar el valor perdido de la variable _Fare_  por la mediana de su clase y embarque.
 
 
 ```{r}
@@ -333,13 +334,59 @@ ggplot(data[!is.na(data$Embarked),], aes(x = Embarked, y = Fare, fill = factor(P
   theme_few()
 ```
 
-Después de visualizar las gráfica anterior se puede dar por válido el reemplezar el valor perdido de la variable _Embarked_  por el valor _C_.
+Después de visualizar las gráfica anterior se puede dar por válido el reemplazar el valor perdido de la variable _Embarked_  por el valor _C_.
 
 ```{r}
 
 data$Embarked[miss_embark_index] <- 'C'
 
 ```
+
+
+
+# Variable _Age_
+
+Esta variable contiene bastantes valores perdidos, por lo que eliminarlos o reemplazarlos por un único valores ya que se estaría distorsionando los resultados del análisis. Por lo que se va a utilizar un modelo de predicción más sofisticado llamado mice (Multivariate Imputation by Chained Equations).
+
+Este método se basa en la especificación totalmente condicional, donde cada variable incompleta se imputa por un modelo separado. Este algoritmo puede imputar mezclas de datos categóricos ordenados, continuos, binarios, desordenados. 
+
+```{r}
+
+# Make variables factors into factors
+# Set a random seed
+set.seed(129)
+# Perform mice imputation, excluding certain less-than-useful variables:
+mice_mod <- mice(data[, !names(data) %in%
+c('Name','Ticket','Cabin','Family','Surname','Survived')],
+method='rf')
+
+```
+```{r}
+#Save the complete output
+mice_output <- complete(mice_mod)
+```
+
+Se compara los resultados de la distribución origianal de la edad con los del modelo.
+
+
+```{r}
+#Plot age distributions
+par(mfrow=c(1,2))
+hist(data$Age, freq=F, main='Age: Original Data',
+col='blue', ylim=c(0,0.04))
+hist(mice_output$Age, freq=F, main='Age: MICE Output',
+col='orange', ylim=c(0,0.04))
+```
+
+Se observa una leve mejora en la distribución, por lo que se reemplazará los datos origianles de la edad con los obtenidos con el modelo mice.
+
+```{r}
+# Replace Age variable from the mice model.
+data$Age <- mice_output$Age
+# Show new number of missing Age values
+sum(is.na(data$Age))
+```
+
 
 ## valores extremos
 
@@ -352,7 +399,9 @@ En este apartado se analizarán los valores extremos de las variables _Age_, _Fa
 boxplot(data$Age, main="Box plot", col="gray")
 
 ```
-
+```{r}
+boxplot.stats(data$Age)$out
+```
 
 Se puede observar que los valores extremos están en un rango normal, ningún pasajero es menor que 0 o mayor que 100.
 
@@ -363,6 +412,10 @@ Se puede observar que los valores extremos están en un rango normal, ningún pa
 
 boxplot(data$Fare, main="Box plot", col="gray")
 ```
+```{r}
+boxplot.stats(data$Fare)$out
+```
+
 
 ```{r}
 
@@ -375,6 +428,9 @@ ggplot(data, aes(x = Pclass, y = Fare)) +
 
 ```
 
+Se puede observar que los valores extremos pertenecen a una clase específica, mientras mayor es la clasew y mayor es el número de pasajeros, más alta es la tarifa.
+
+
 
 # Variable _SibSp_
 
@@ -382,6 +438,12 @@ ggplot(data, aes(x = Pclass, y = Fare)) +
 
 boxplot(data$SibSp, main="Box plot", col="gray")
 ```
+```{r}
+boxplot.stats(data$SibSp)$out
+```
+Se observar que los valores extremos están un rango normal. Por ejemplo, ninguno es menor que cero o mayor que 15. Una familia con más de 20 individuos viajando junto es poco habitual. Por tanto, son valores que perfectamente pueden darse.
+
+
 
 # Variable _Parch_
 
@@ -390,155 +452,756 @@ boxplot(data$Parch, main="Box plot", col="gray")
 
 ```
 
-
-
-
-## Distribución de las variables
-
-Representamos la distribución de las variables y donde se ve reflejado las afirmaciones extraídas sobre los datos anteriores.  
-
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-grid.newpage()
-
-  plotbyClass<-ggplot(data,aes(Pclass))+geom_bar(fill = "#377EB8") +labs(x="", y="Pasajeros")+ggtitle("Clase")
-  plotbySex<-ggplot(data,aes(Sex))+geom_bar(fill = "#377EB8") +labs(x="", y="Pasajeros")+ggtitle("Género")
-  
-grid.arrange(plotbyClass, plotbySex,ncol=2)
-
+```{r}
+boxplot.stats(data$Parch)$out
 ```
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-grid.newpage()
- 
-  plotbyAge<-ggplot(data,aes(Age))+geom_bar(fill = "#377EB8") +labs(x="", y="")+ggtitle("Edad")
-  plotbyFare<-ggplot(data,aes(Fare))+geom_bar(fill = "#377EB8") +labs(x="", y="")+ggtitle("Fare")
-  
-grid.arrange(plotbyAge, plotbyFare,ncol=2)
-
-```
+Se observar que los valores extremos están un rango normal. Por ejemplo, ninguno es menor que cero o mayor que 15. Una familia con más de 20 individuos viajando junto es poco habitual. Por tanto, son valores que perfectamente pueden darse.
 
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-grid.newpage()
- 
-  plotbySibSp<-ggplot(data,aes(SibSp))+geom_bar(fill = "#377EB8") +labs(x="", y="")+ggtitle("SibSp")
-  plotbyParch<-ggplot(data,aes(Parch))+geom_bar(fill = "#377EB8") +labs(x="", y="")+ggtitle("Parch")
-  
-grid.arrange(plotbySibSp, plotbyParch,ncol=2)
+## Exportación de los datos
 
-```
-
-A continuación, se muestra la distribución de la varible supervivencia, que además, nos interesa describir su relación con el resto de variables. 
+Se vuelven a revisar los datos para comprabar que no contienen valores nulos y/o vacios.
 
 ```{r}
- ggplot(data,aes(Survived))+geom_bar(fill = "#377EB8") +labs(x="", y="")+ggtitle("Superviviente")
+summary(data)
 ```
-
-Para ello, por un lado graficaremos mediante diagramas de barras la cantidad de muertos y supervivientes según la clase en la que viajaban, la edad, género, si viajan con familia, de donde embarcaron o el precio del billete. 
-
-Por otro lado, para obtener los datos que estamos graficando utilizaremos el comando table para dos variables que nos proporciona una tabla de contingencia.
-
-## Relación con la variable supervivencia {.tabset}
-
-De estos gráficos obtenemos información muy valiosa que complementamos con las tablas de contingencia (listadas abajo). 
-
-Por un lado, sobrevivieron un mayor número de mujeres que de hombre, hombres: 109 y mujeres 233 y el porcentaje de supervivencia en el caso de las mujeres se situa entorno al 74%, mientras que la de los hombres es del 18.89%, por lo tanto, la tasa de muerte en hombres es muchísimo mayor 81%. 
-
-En cuanto a la clase en la que viajaban, los pasajeros que viajaban en primera clase fueron los únicos que el porcentaje de supervivencia era mayor que el de mortalidad. El 62,96% de los viajeros de primera clase sobrevivió, el 47,3% de los que viajaban en segunda clase mientras que de los viajeros de tercera solo sobrevivieron un 24,23%. 
-
-Aunque el grupo de menores es pequeño son los que mayor porcentaje de supervivencia presentan, manteniendose este comportamiento en cada una de la clases.
-
-### Pclass {-}
-
-```{r, fig.width=12, fig.height=5}
-ggplot(data,aes(Pclass,fill=Survived))+geom_bar() +labs(x="Clase", y="Pasajeros")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Superviviente por clase")
-```
+A continuación se seleccionarán las variables que se consideran más útiles para el posterior análisis.
 
 ```{r}
-tablaClass <- table(Pclass,Survived)
-tablaClass
-prop.table(tablaClass, margin = 1)
+# Seleccion de caracteristicas de interes
+
+clean_data <- select(data, -Name, -Famsize)
+# Visualizamos los datos limpios:
+summary(clean_data)
 ```
 
-
-### Age {-}
-
-```{r, fig.width=12, fig.height=5}
-
-ggplot(data,aes(Age,fill=Survived))+geom_bar() +labs(x="Edad", y="Pasajeros")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Superviviente por edad")
-
-```
+Se divide el dataset en dos conjuntos: train y test.
 
 ```{r}
-ggplot(data,aes(x=Age,fill=Survived))+geom_bar(position="fill")+facet_wrap(~Pclass)+ggtitle("Pasajeros por edad y clase con relación con la supervivencia")
+#Dividimos el conjunto de datos en datos de entrenamiento y datos prueba.
+clean_train_data <- clean_data[1:nrow(dataTrain),]
+clean_test_data <- clean_data[(nrow(dataTrain) + 1):nrow(data),]
+
+
+# Exportación de los datos limpios en .csv
+
+write.csv(clean_train_data, 'clean_train.csv')
+write.csv(clean_test_data, 'clean_test.csv')
+          
+write.csv(clean_data, 'clean_full.csv')
 ```
 
+
+******
+# Análisis de los datos
+******
+
+# Selección de los datos a comparar
+
+De las características del conjunto de entrenamiento nos interesa analizar las variables cuantitativas Age
+y Fare;y las variables cuantitativas Sex, Pclass, Title, FSizeD y Deck. En principio descartaremos las
+variables cuantitativas SibSp y Parch debido a que están discretizadas en la variable cuantitativa FSizeD; y
+también las variables Ticket y Surname debido a que tienen demasiados valores.
+Para analizar estas variables emplearemos diagramas de histogramas para las variables cuantitativas y
+diagramas de barras para las variables cualitativas en función de la supervivencia.
+
+# Relaciones de las variables independientes con la variable survived
+
+## Comparativa entre las variables Sex y Survived
 
 ```{r}
-tablaAge <- table(Age, Survived)
-tablaAge
-prop.table(tablaAge, margin = 1)
-```
 
-### Sex {-}
-
-```{r, fig.width=12, fig.height=5}
-
-ggplot(data,aes(Sex,fill=Survived))+geom_bar() +labs(x="Sexo", y="Pasajeros")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Superviviente por sexo")
+# Use ggplot2 to visualize the relationship between family size & survival
+ggplot(clean_train_data, aes(x = Sex, fill = Survived)) +
+  geom_bar(stat='count', position='dodge') +
+  labs(x = 'Sex') +
+  theme_few()
 
 ```
+
+El diagrama de barras anterior muestra la distribución de supervivencia de mujeres y hombres. Como se
+intuía está característica parece influir en la supervivencia. El gráfico de barras muestra que un 74% de los
+pasajeros mujeres sobrevivieron, mientras que solo un 19% de los pasajeros varones sobrevivieron.
+De tal forma que aquellos pasajeros con sexo femenino tuvieron una tasa de supervivencia más alta que los
+varones.
+
+
+
+## Comparativa entre las variables Pclass y Survived
 
 ```{r}
-tablaSex <- table(Sex, Survived)
-tablaSex
-prop.table(tablaSex, margin = 1)
+# Use ggplot2 to visualize the relationship between family size & survival
+ggplot(clean_train_data, aes(x = Pclass, fill = Survived)) +
+  geom_bar(stat='count', position='dodge') +
+  labs(x = 'Class') +
+  theme_few()
 ```
 
 
-## Correlación de variables
+Las gráficas anteriores muestran la distribución de la supervivencia en función de la clase del pasajero. En el gráfico se observa que esta característica parece influir en la supervivencia. El gráfico de barras muestra que sobre el 63 % de los pasajeros de primera clase sobrevivieron, mientras que sobre el 48 % de los pasajeros de segunda clase sobrevivieron, y solo el 24 % de los pasajeros de tercera clase sobrevivieron.
+De tal forma que aquellos pasajeros en las clases más altas tienen una tasa de supervivencia más alta que aquellos pasajeros en las clases más bajas.
 
 
-## Test estadísticos de significancia
 
-Los resultados anteriores muestran los datos de forma descriptiva, podemos añadir algún test estadístico para validar el grado de significancia de la relación. La librería "DescTools" nos permite instalarlo fácilmente.
-
+## Comparativa entre las variables Embarked y Survived
 
 ```{r}
-if(!require(DescTools)){
-    install.packages('DescTools', repos='http://cran.us.r-project.org')
-    library(DescTools)
+ggplot(clean_train_data, aes(x = Embarked, fill = Survived)) +
+  geom_bar(stat='count', position='dodge') +
+  labs(x = 'Embarked') +
+  theme_few()
+```
+
+## Comparativa entre las variables Title y Survived
+
+```{r}
+ggplot(clean_train_data, aes(x = Title, fill = Survived)) +
+  geom_bar(stat='count', position='dodge') +
+  labs(x = 'Title') +
+  theme_few()
+```
+
+La gráfica anterior parece confirmar nuestra suposición que los pasajeros con título Mr (varones) solo el 16% sobrevivió.
+
+
+## Comparativa entre las variables Fsize y Survived
+
+```{r}
+ggplot(clean_train_data, aes(x = Fsize, fill = Survived)) +
+  geom_bar(stat='count', position='dodge') +
+  labs(x = 'Family size') +
+  theme_few()
+```
+
+La gráfica anterior muestra que sobre el 70% los pasajeros solteros y sobre el 82% de las familias grandes no sobrevivieron. Respecto al conjunto de solteros suponemos que la mayoría deberían ser varones dado que en la época del accidente sería más habitual que estos viajen solos. Además, suponemos que las familias grandes no cabrían todos en un bote de salvavidas y esto podría influir en su supervivencia.
+
+Más adelante analizaremos esta característica en función del sexo ya que ser soltero y varón debería ser un rasgo que influya en la supervivencia.
+
+## Comparativa entre las variables Age y Survived
+
+```{r}
+ggplot(clean_train_data, aes(x = Age, fill = Survived)) +
+  geom_histogram() +
+  labs(x = 'Family size') +
+  theme_few()
+```
+
+No hay nada fuera de lo común en esta trama, excepto la parte izquierda de la distribución. Demuestra que los niños y los bebés eran la prioridad, por lo tanto, se salvó una buena parte de los niños.
+
+## Comparativa entre las variables Fare y Survived
+
+```{r}
+ggplot(clean_train_data, aes(x = Fare, fill = Survived)) +
+  geom_histogram() +
+  labs(x = 'Fare') +
+  theme_few()
+```
+
+La gráfica anterior muestra algo interesante, existe un pico en los valores de menos de 100 dólares que representa que muchos de los pasajeros que compraron un ticket dentro de ese rango no sobrevivieron. Cuando la tarifa es aproximadamente más de 280 dólares, la tasa de mortalidad es baja, lo que significa que todos los que pasaron de esa la tarifa sobrevivieron.
+
+
+# Relaciones de dos variables independientes con la variable dependiente
+
+
+## Comparativa de las variables Sex y Pclas con la variable Survived
+
+```{r}
+ggplot(clean_train_data, aes(Pclass, fill = factor(Survived))) +
+geom_bar(position=position_dodge()) +
+facet_grid(.~Sex) +
+theme_few()
+```
+La gráfica anterior muestra que los pasajeros mujeres y de una clase alta sobrevivieron en su mayoría. También se observa que los pasajeros varones tuvieron una tasa de supervivencia mucho más baja que las mujeres. Esta tasa de supervivencia va empeorando a medida que la clase del pasajero baje. Se puede concluir que ser de sexo y la clase pueden influir en la supervivencia del pasajero.
+
+
+## Comparativa de las variables Sex y Fsize con la variable Survived
+
+```{r}
+ggplot(clean_train_data, aes(Fsize, fill = factor(Survived))) +
+geom_bar(position=position_dodge()) +
+labs(fill = "Survived") +
+facet_grid(.~Sex) +
+theme_few()
+```
+
+La gráfica anterior muestra que los pasajeros solteros varones tuvieron una tasa de mortalidad más alta. Esta valor es lógico debido que en los botes salvavidas tendrían una preferencia menor a las mujeres y niños.
+
+
+## Comparativa de las variables Sex y Embarked con la variable Survived
+
+```{r}
+ggplot(clean_train_data, aes(Embarked, fill = factor(Survived))) +
+geom_bar(position=position_dodge()) +
+facet_grid(.~Sex) +
+theme_few()
+```
+La gráfica anterior muestra que la mayoría de los pasajeros parece ser que embarcaron en Southampton (S). Aunque la mayoría de los pasajeros embarco en Southampton (S) a priori no debería ser relevante para la supervivencia, a menos que tenga alguna relación con la localización del camarote o la clase del pasajero.
+
+## Comparativa de las variables Sex y Age con la variable Survived
+
+```{r}
+ggplot(clean_train_data, aes(x = Age, fill = factor(Survived))) +
+geom_histogram() +
+facet_grid(.~Sex) +
+theme_few()
+```
+
+La gráfica anterior muestra que la supervivencia de los varones es baja para los adultos. Los niños varones tienen una tasa de supervivencia alta, esto es lógico debido a la preferencia que tuvieron estos en los botes. Por tanto, podemos concluir que el sexo y la edad de los pasajeros son características que influyen en la supervivencia.
+
+## Comparativa de las variables Sex y Fare con la variable Survived
+
+```{r}
+ggplot(clean_train_data, aes(x = Fare, fill = factor(Survived))) +
+geom_histogram() +
+facet_grid(.~Sex) +
+theme_few()
+```
+
+La gráfica anterior no se observa algo nuevo. Solamente que la condición socioeconómica parece un factor que puede influir en la supervivencia. De las gráficas anteriores se concluye que las características Age,Sex, Fare y Pclass parecen tener influyen en la supervivencia.
+
+
+# Comprobación de la normalidad y homogeneidad de la varianza
+
+## Normalidad
+
+En este apartado se revisará si las variables siguen una distribución normal.
+
+```{r}
+alpha = 0.05
+drawQQPlotAndtHist <- function(dataset) {
+  par(mfrow=c(2,2))
+  for(i in 1:ncol(dataset)) {
+    if (is.numeric(dataset[,i])){
+      qqnorm(dataset[,i],main = paste("Normal Q-Q Plot for ",colnames(dataset)[i]))
+      qqline(dataset[,i],col="red")
+      hist(dataset[,i],
+           main=paste("Histogram for ", colnames(dataset)[i]),
+          xlab=colnames(dataset)[i], freq = FALSE)
+    }
+  }
 }
+#Mostramos las gráficas.
+
+drawQQPlotAndtHist(clean_train_data)
+```
+
+De las gráficas anteriores, se observa que la característica Age pueden ser candidata a la normalización. No obstante, se aplicará el test de Shapiro-Wilk para contrastar esta asunción.
+
+**Test Shapiro-Wilk**
+
+El test de Shapiro-Wilk se usa para contrastar si un conjunto de datos siguen una distribución normal o no. En nuestro caso se aplicará este test cada una las variables cuantitativas consideradas.
+De tal forma que la hipótesis nula (H0) y la alternativa (H1) se pueden escribir de la siguiente forma:
+
+  * Hipótesis nula (Ho): Los datos de la muestra no son significativamente diferentes de una población     normal.
+  
+  * Hipótesis alternativa (H1): Los datos de la muestra son significativamente diferentes de una          población normal.
+  
+  * Zona de rechazo. Para todo valor de probabilidad mayor que un nivel de significación p = 0.05, se     acepta Ho y se rechaza H1.
+
+Para comprobar la asunción de normalidad aplicamos el test Shapiro-Wilk, para ello utilizamos la función **shapiro.test**. A continuación, se muestra la aplicación del test Shapiro-Wilk para las variables cuantitativas consideradas:
+
+```{r}
+shapiro.test(clean_train_data$Age)
+```
+```{r}
+shapiro.test(clean_train_data$SibSp)
+```
+```{r}
+shapiro.test(clean_train_data$Parch)
+```
+
+
+```{r}
+shapiro.test(clean_train_data$Fare)
+```
+Dado los resultados anteriores, se observa que para las cuatro características consideradas sus correspondientes p-valores son inferiores al nivel de significación (p = 0.05). Por tanto, rechazamos la H0 y concluimos con un 95% de confianza que los datos no se distribuyen normalmente.
+
+
+A continuación se aplicará este test para realizar el contraste de si existen diferencias en la edad (Age) en función de la supervivencia (Survived).
+
+```{r}
+age_sur_0 <- clean_train_data$Age[clean_train_data$Survived==0]
+age_sur_1 <- clean_train_data$Age[clean_train_data$Survived==1]
+
+par(mfrow=c(1,2))
+qqnorm(age_sur_0, main = paste("Normal Q-Q Plot for ", colnames(age_sur_0)[1]))
+qqline(age_sur_0, col="red")
+hist(age_sur_0,
+main=paste("Histogram for ", colnames(age_sur_0)[1]),
+xlab=colnames(age_sur_0)[1], freq = FALSE)
+
+
+```
+```{r}
+par(mfrow=c(1,2))
+qqnorm(age_sur_1, main = paste("Normal Q-Q Plot for ", colnames(age_sur_1)[1]))
+qqline(age_sur_1, col="red")
+hist(age_sur_1,
+     main=paste("Histogram for ", colnames(age_sur_1)[1]),
+xlab=colnames(age_sur_1)[1], freq = FALSE)
+```
+```{r}
+shapiro.test(age_sur_0)
+```
+
+
+```{r}
+shapiro.test(age_sur_1)
+```
+Dado los resultados anteriores, se observa que para las cuatro características consideradas sus correspondientes p-valores son inferiores al nivel de significación (p = 0.05). Por tanto, rechazamos la H0 y concluimos con un 95% de confianza que los datos no se distribuyen normalmente.
+
+A continuación se aplicará este test para realizar el contraste de si existen diferencias en la característica Número de hermanos/cónyuges a bordo (SibSp) en función de la supervivencia (Survived).
+
+```{r}
+SibSp_sur_0 <- clean_train_data$SibSp[clean_train_data$Survived==0]
+SibSp_sur_1 <- clean_train_data$SibSp[clean_train_data$Survived==1]
+
+par(mfrow=c(1,2))
+qqnorm(SibSp_sur_0, main = paste("Normal Q-Q Plot for ", colnames(SibSp_sur_0)[1]))
+qqline(SibSp_sur_0, col="red")
+hist(SibSp_sur_0,
+     main=paste("Histogram for ", colnames(SibSp_sur_0)[1]),
+xlab=colnames(SibSp_sur_0)[1], freq = FALSE)
 ```
 
 ```{r}
-Phi(tablaClass) 
-CramerV(tablaClass) 
+par(mfrow=c(1,2))
+qqnorm(SibSp_sur_1, main = paste("Normal Q-Q Plot for ", colnames(SibSp_sur_1)[1]))
+qqline(SibSp_sur_1, col="red")
+hist(SibSp_sur_1,
+main=paste("Histogram for ", colnames(SibSp_sur_1)[1]),
+xlab=colnames(SibSp_sur_1)[1], freq = FALSE)
 ```
 
 ```{r}
-Phi(tablaSex) 
-CramerV(tablaSex) 
+shapiro.test(SibSp_sur_0)
+```
+
+
+```{r}
+shapiro.test(SibSp_sur_1)
+```
+
+Dado los resultados anteriores, se observa que para las cuatro características consideradas sus correspondientes valores son inferiores al nivel de significación (p = 0.05). Por tanto, rechazamos la H0 y concluimos con un 95% de confianza que los datos no se distribuyen normalmente.
+
+A continuación se aplicará este test para realizar el contraste de si existen diferencias en la característica Número de padres/hijos a bordo (Parch) en función de la supervivencia (Survived).
+
+```{r}
+Parch_sur_0 <- clean_train_data$Parch[clean_train_data$Survived==0]
+Parch_sur_1 <- clean_train_data$Parch[clean_train_data$Survived==1]
+
+par(mfrow=c(1,2))
+qqnorm(Parch_sur_0, main = paste("Normal Q-Q Plot for ", colnames(Parch_sur_0)[1]))
+qqline(Parch_sur_0, col="red")
+hist(Parch_sur_0,
+main=paste("Histogram for ", colnames(Parch_sur_0)[1]),
+xlab=colnames(Parch_sur_0)[1], freq = FALSE)
 ```
 
 ```{r}
-Phi(tablaAge) 
-CramerV(tablaAge) 
+par(mfrow=c(1,2))
+qqnorm(Parch_sur_1, main = paste("Normal Q-Q Plot for ", colnames(Parch_sur_1)[1]))
+qqline(Parch_sur_1, col="red")
+hist(Parch_sur_1,
+main=paste("Histogram for ", colnames(Parch_sur_1)[1]),
+xlab=colnames(Parch_sur_1)[1], freq = FALSE)
 ```
-
-Valores de la V de Cramér  (https://en.wikipedia.org/wiki/Cramér%27s_V) y Phi (https://en.wikipedia.org/wiki/Phi_coefficient) entre 0.1 y 0.3 nos indican que la asociación estadística es baja, y entre 0.3 y 0.5 se puede considerar una asociación media. Finalmente, si los valores fueran superiores a 0.5 (no es el caso), la asociación estadística entre las variables sería alta.
-Como se puede apreciar, los valores de Phi y V coinciden. Esto ocurre en el contexto de analizar tablas de contingencia 2x2.
-
-Una alternativa interesante a las barras de diagramas, es el plot de las tablas de contingencia. Obtenemos la misma información pero para algunos receptores puede resultar más visual.  
 
 ```{r}
-par(mfrow=c(2,2))
-plot(tablaClass, col = c("black","#008000"), main = "SURVIVED vs. CLASS")
-plot(tablaAge, col = c("black","#008000"), main = "SURVIVED vs. AGE")
-plot(tablaSex, col = c("black","#008000"), main = "SURVIVED vs. SEX")
+shapiro.test(Parch_sur_0)
 ```
 
-Nuestro objetivo es crear un árbol de decisión que permita analizar qué tipo de pasajero del Titanic tenía probabilidades de sobrevivir o no. Por lo tanto, la variable por la que clasificaremos es el campo de si el pasajero sobrevivió o no. De todas maneras, al imprimir las primeras (con head) y últimas 10 (con tail) filas nos damos cuenta de que los datos están ordenados.
+
+```{r}
+shapiro.test(Parch_sur_1)
+```
+Dado los resultados anteriores, se observa que para las cuatro características consideradas sus correspondientes p-valores son inferiores al nivel de significación (p = 0.05). Por tanto, rechazamos la H0 y concluimos con un 95% de confianza que los datos no se distribuyen normalmente.
+
+Ahora se aplicará este test para realizar el contraste de si existen diferencias en la característica Tarifa (Fare) en función de la supervivencia (Survived).
+
+```{r}
+Fare_sur_0 <- clean_train_data$Fare[clean_train_data$Survived==0]
+Fare_sur_1 <- clean_train_data$Fare[clean_train_data$Survived==1]
+
+par(mfrow=c(1,2))
+qqnorm(Fare_sur_0, main = paste("Normal Q-Q Plot for ", colnames(Fare_sur_0)[1]))
+qqline(Fare_sur_0, col="red")
+hist(Fare_sur_0,
+main=paste("Histogram for ", colnames(Fare_sur_0)[1]),
+xlab=colnames(Fare_sur_0)[1], freq = FALSE)
+```
+
+```{r}
+par(mfrow=c(1,2))
+qqnorm(Fare_sur_1, main = paste("Normal Q-Q Plot for ", colnames(Fare_sur_1)[1]))
+qqline(Fare_sur_1, col="red")
+hist(Fare_sur_1,
+main=paste("Histogram for ", colnames(Fare_sur_1)[1]),
+xlab=colnames(Fare_sur_1)[1], freq = FALSE)
+```
+
+```{r}
+shapiro.test(Fare_sur_0)
+```
+
+```{r}
+shapiro.test(Fare_sur_1)
+```
+
+Dado los resultados anteriores, se observa que para las cuatro características consideradas sus correspondientes p-valores son inferiores al nivel de significación (p = 0.05). Por tanto, rechazamos la H0 y concluimos con un 95% de confianza que los datos no se distribuyen normalmente.
+
+
+## Homegeneidad de la varianza
+
+En este apartado se estudiará la homegeneidad de la varianza utilizando el test de Filgener-killeen. Se trata de un test no paramétrico que compara las varianzas basándose en la mediana. Es una alternativa cuando no se cumple la condición de normalidad en las muestras. De tal forma que la hipótesis nula (H0) y la alternativa (H1) se pueden escribir de la siguiente forma: 
+
+  * Hipótesis nula (Ho): Todas las varianzas de las poblaciones son iguales.
+  
+  * Hipótesis alternativa (H1): Al menos dos de ellos difieren.
+  
+  * Zona de rechazo. Para todo valor de probabilidad mayor que un nivel de significación  = 0.05, se     acepta Ho y se rechaza H1.
+
+Para realizar el test Fligner-Killeen se utiliza la función fligner.test(). A continuación, se muestra la aplicación del test Fligner-Killeen para la característica cuantitativas Edad (Age) en función de la Supervivencia (Survived):
+
+```{r}
+boxplot(Age ~ Survived, data = clean_train_data)
+```
+
+```{r}
+fligner.test(Age ~ Survived, data = clean_train_data)
+```
+Puesto que obtenemos un p-valor superior al nivel de significación (p = 0.05), aceptamos la hipótesis nula (H0), es decir, de que las varianzas de ambas muestras son homogéneas.
+
+A continuación, se muestra la aplicación del test Fligner-Killeen para característica Número de hermanos/ cónyuges a bordo (SibSp) en función de la Supervivencia (Survived):
+
+```{r}
+fligner.test(SibSp ~ Survived, data = clean_train_data)
+```
+Puesto que obtenemos un p-valor superior al nivel de significación (p = 0.05), aceptamos la hipótesis nula (H0), es decir, de que las varianzas de ambas muestras son homogéneas.
+
+A continuación, se muestra la aplicación del test Fligner-Killeen para la característica Número de padres/hijos a bordo (Parch) en función de la Supervivencia (Survived):
+
+
+```{r}
+fligner.test(Parch ~ Survived, data = clean_train_data)
+```
+Puesto que obtenemos un p-valor inferior al nivel de significación (p = 0.05), aceptamos la hipótesis nula (H0), es decir, de que las varianzas son significativamente diferentes.
+
+A continuación, se muestra la aplicación del test Fligner-Killeen para la característica Tarifa (Fare) en función de la Supervivencia (Survived):
+
+```{r}
+fligner.test(Fare ~ Survived, data = clean_train_data)
+```
+Puesto que obtenemos un p-valor inferior al nivel de significación (p = 0.05), rechazamos la hipótesis nula (H0), y podemos concluir que las varianzas son significativamente diferentes.
+
+
+# Apliación de pruebas estadísticas para comparar los grupos de datos.
+
+
+## Contraste de hipótesis
+
+En este apartado se aplicará un contraste de hipótesis sobre dos muestras para determinar si la supervivencia dependiendo de otra variable categórica. Para comparar la dependencia entre dos variables categóricas se utilizará la prueba de chi-cuadrado. El contraste de hipótesis a realizar se expresa así:
+
+  * Hipótesis nula (Ho). Los dos factores son independientes.
+  
+  * Hipótesis alternativa (H1): Los dos factores son dependentes.
+  
+  * Zona de rechazo. Para todo valor de probabilidad mayor que un nivel de significación p = 0.05, se     acepta Ho y se rechaza H1.
+
+Una vez establecido las hipótesis para cada conjunto de variables categóricas consideradas se construirá su correspondiente tabla de contingencia y se aplicará el test chi-cuadrado, para ello se empleará la función chisq.test().
+
+A continuación, se calculan la prueba chi-cuadrado para varios pares de variables categóricas.
+
+### Variables Survived-Sex
+
+```{r}
+tbl = table(clean_train_data$Survived, clean_train_data$Sex)
+tbl
+```
+Aplicamos la función chisq.test a la tabla de contingencia tbl:
+
+```{r}
+chisq.test(tbl)
+```
+
+Como el valor de p-valor es menor que el nivel de significancia de 0.05, por tanto rechazamos la hipótesis nula (H0) y aceptamos la hipótesis alternativa. Por tanto, concluimos que la supervivenvia depende del sexo del pasajero (Sex)
+
+### Variables Survived-Pclass
+
+```{r}
+tbl = table(clean_train_data$Survived, clean_train_data$Pclass)
+tbl
+```
+
+Aplicamos la función chisq.test a la tabla de contingencia tbl:
+
+```{r}
+chisq.test(tbl)
+```
+Como el valor de p-valor es menor que el nivel de significancia de 0.05, por tanto rechazamos la hipótesis nula (H0) y aceptamos la hipótesis alternativa. Por tanto, concluimos que la supervivenvia depende la clase del pasajero (Pclass).
+
+
+### Variables Survived-Fsize
+
+```{r}
+tbl = table(clean_train_data$Survived, clean_train_data$Fsize)
+tbl
+```
+Aplicamos la función chisq.test a la tabla de contingencia tbl:
+
+```{r}
+chisq.test(tbl)
+```
+Como el valor de p-valor es menor que el nivel de significancia de 0.05, por tanto rechazamos la hipótesis nula (H0) y aceptamos la hipótesis alternativa. Por tanto, concluimos que la supervivenvia depende del tamaño de la familia (Fsize)
+
+
+### Variables Survived-Title
+
+```{r}
+tbl = table(clean_train_data$Survived, clean_train_data$Title)
+tbl
+```
+Aplicamos la función chisq.test a la tabla de contingencia tbl:
+
+```{r}
+chisq.test(tbl)
+```
+Como el valor de p-valor es menor que el nivel de significancia de 0.05, por tanto rechazamos la hipótesis nula (H0) y aceptamos la hipótesis alternativa. Por tanto, concluimos que la supervivenvia depende del titulo del pasajero (Title).
+
+
+## Corelación
+
+En este apartado procedemos a realizar un análisis de correlación entre las distintas variables numéricas del conjunto de datos. Cuando dos características o más tienen correlación, eso significa que se están explicando unas a otras al tiempo con lo que proporcionan solo poca o ninguna información nueva.
+
+```{r}
+# Calculamos las correlaciones.
+corr_data <- select_if(clean_train_data, is.numeric)
+
+corr.res <- cor(corr_data)
+# Mostramos las gráficas
+ggpairs(corr_data)
+```
+
+
+La gráfica anterior muestra que existe una correlación positiva entre las variables Parch y SibSp. Esto tiene sentido debido a que ambas variables hacen referencia al tamaño de la familia que va a bordo.
+
+## Regresión Logística
+
+La estrategia por seguir será partir de un modelo donde la supervivencia dependa de la Edad (Age), la tarifa (Fare), el Número de hermanos/cónyuges a bordo (SibSp), el número de padres/hijos a bordo (Parch), la embarcación (Embarked), el sexo (Sex) y la clase (Pclass). Partiendo de esta modelo ser irá añadiendo y quitando variables con el propósito de mejorar el modelo.
+En primer lugar, establecemos categorías de referencia para las variables cualitativas: “F” para la variable Sex, “S” para la variable Embarked, “1” para la variable Pclass, “small” para la variable Fsize, “Miss” para la variable Title, y “A” para la variable Title; para ello utilizamos la función relevel().
+
+```{r}
+# Nivel de significancia
+
+sig_level = 0.05
+
+# Establecemos categoria de referencia conjunto de datos.
+
+clean_train_data$SexR <- relevel(clean_train_data$Sex, ref="female")
+clean_train_data$EmbarkedR <- relevel(clean_train_data$Embarked, ref="S")
+clean_train_data$PclassR <- relevel(clean_train_data$Pclass, ref="1")
+clean_train_data$FsizeD <- relevel(clean_train_data$Fsize, ref="small")
+clean_train_data$TitleR <- relevel(clean_train_data$Title, ref="Miss")
+
+# Establecemos categoria de referencia conjunto de pruebas
+
+clean_test_data$SexR <- relevel(clean_test_data$Sex, ref="female")
+clean_test_data$EmbarkedR <- relevel(clean_test_data$Embarked, ref="S")
+clean_test_data$PclassR <- relevel(clean_test_data$Pclass, ref="1")
+clean_test_data$Fsize <- relevel(clean_test_data$Fsize, ref="small")
+clean_test_data$TitleR <- relevel(clean_test_data$Title, ref="Miss")
+
+```
+
+
+Calculamos la supervivencia en función de las carácteristicas:
+
+  • Modelo 1. Survived = Age + SibSp + Parch + Fare + EmbarkedR + SexR + PclassR.
+  
+  • Modelo 2. Survived = Age + SibSp + Parch + Fare + EmbarkedR + SexR + PclassR + Fsize.
+  
+  • Modelo 3. Survived = Age + SibSp + Parch + Fare + EmbarkedR + SexR + PclassR + TitleR.
+  
+  • Modelo 4. Age + SibSp + Parch + Fare + EmbarkedR + SexR + PclassR + Fsize +
+    TitleR.
+    
+  • Modelo 5. Survived = Age + Fare + SexR + PclassR + Fsize + TitleR.
+  
+  • Modelo 6. Survived = Age + Fare + SexR + PclassR + Fsize.
+  
+  • Modelo 7. Survived = Age + SexR + PclassR + Fsize.
+
+
+```{r}
+
+# Calculamos modelo 1
+glm1.fit <- glm(factor(Survived) ~ Age + SibSp + Parch + Fare +
+                  EmbarkedR + SexR + PclassR,
+                data = clean_train_data,
+                family = "binomial")
+
+glm1.summary <- summary(glm1.fit)
+
+
+
+# Calculamos modelo 2
+glm2.fit <- glm(factor(Survived) ~ Age + SibSp + Parch + Fare +
+                  EmbarkedR + SexR + PclassR +
+                  Fsize,
+                data = clean_train_data,
+                family = "binomial")
+
+glm2.summary <- summary(glm2.fit)
+
+
+# Calculamos modelo 3
+glm3.fit <- glm(factor(Survived) ~ Age + SibSp + Parch + Fare +
+                  EmbarkedR + SexR + PclassR +
+                  TitleR,
+                data = clean_train_data,
+                family = "binomial")
+
+glm3.summary <- summary(glm3.fit)
+
+
+
+# Calculamos modelo 4
+glm4.fit <- glm(factor(Survived) ~ Age + SibSp + Parch + Fare +
+                  EmbarkedR + SexR + PclassR +
+                  FsizeD + TitleR,
+                data = clean_train_data,
+                family = "binomial")
+
+glm4.summary <- summary(glm4.fit)
+
+
+# Calculamos modelo 5
+glm5.fit <- glm(factor(Survived) ~ Age + Fare +
+                  SexR + PclassR +
+                  Fsize + TitleR,
+                data = clean_train_data,
+                family = "binomial")
+
+glm5.summary <- summary(glm5.fit)
+
+
+# Calculamos modelo 6
+
+glm6.fit <- glm(factor(Survived) ~ Age + Fare +
+                  SexR + PclassR +
+                  Fsize,
+                data = clean_train_data,
+                family = "binomial")
+
+glm6.summary <- summary(glm6.fit)
+
+
+
+# Calculamos modelo 7
+
+glm7.fit <- glm(factor(Survived) ~ Age +
+                  SexR + PclassR +
+                  Fsize,
+                data = clean_train_data,
+                family = "binomial")
+
+glm7.summary <- summary(glm7.fit)
+
+```
+
+
+
+Para los anteriores modelos de regresión logística obtenidos, la bondad del modelo se evaluará mediante la medida AIC. Dado que esta medida tiene en cuenta tanto la bondad del ajuste como la complejidad del modelo, cuando se comparen varios modelos candidatos, se seleccionará aquel que resulte en el menor AIC. Para obtener los AIC’s de los modelos se utiliza la función AIC().
+
+```{r}
+aui_data <- AIC(glm1.fit, glm2.fit, glm3.fit, glm4.fit, glm5.fit, glm6.fit, glm7.fit)
+kable(aui_data) %>%
+kable_styling(bootstrap_options = "striped", full_width = F)
+```
+Dado los resultados anteriores se llega a la conclusión que se obtiene el mejor resultado con el modelo regresor 1 con un valor de 805.1576.
+
+```{r}
+glm1.summary
+```
+```{r}
+glm1.coef <- coef(glm1.fit)
+glm1.coef_exp <- exp(coef(glm1.fit))
+data <- data.frame(Coeficiente = glm1.coef, Exp = glm1.coef_exp)
+kable(data) %>%
+kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+Del modelo anterior podemos concluir que:
+
+  • Para las variables Age, SibSp, EmbarkedRC, SexRMale,  PclassR2 y PclassR3, sus correspondientes      p-valores son menores que 0.05, es decir, son significativas para el modelo.
+  
+  • El resto de variables tienen p-valores son mayores que 0.05, no son significativas y se pueden       eliminar del modelo.
+
+
+## Random forest
+
+
+El RF es un método de clasificación basado en la realización de múltiples árboles de decisión sobre muestras de un conjunto de datos Además, Random Forest permite obtener medidas acerca de la importancia que los diferentes predictores han tenido en el modelo, lo que permite en parte interpretar este. La importancia de los predictores se evalúa como el número de veces que han sido utilizados por los diversos árboles y su capacidad para reducir el índice de Gini en ellos.
+
+```{r}
+#Set a random seed
+set.seed(754)
+
+# Build the model
+rf_model <- randomForest(factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch +
+                           Fare + Embarked + Title +
+                           Fsize,
+                         data = clean_train_data)
+
+# Show model error
+plot(rf_model, ylim=c(0,0.36))
+legend('topright', colnames(rf_model$err.rate), col=1:3, fill=1:3)
+
+```
+
+La línea negra muestra la tasa de error general que cae por debajo del 20%. Las líneas rojas y verdes muestran la tasa de error de “muerto” y “sobrevivió” respectivamente. Con alrededor del 10%, nuestro modelo parece ser bueno para predecir mejor la muerte que la supervivencia.
+
+A continuación, se comprobara la importancia de la variable relativa al explorar la disminución media en Gini calculada en todos los árboles.
+
+```{r}
+#Get importance
+importance <- importance(rf_model)
+varImportance <- data.frame(Variables = row.names(importance),
+                            Importance = round(importance[ ,'MeanDecreaseGini'],2))
+
+# Create a rank variable based on importance
+rankImportance <- varImportance %>%
+  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+
+# Use ggplot2 to visualize the relative importance of variables
+ggplot(rankImportance, aes(x = reorder(Variables, Importance),
+                           y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') +
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+            hjust=0, vjust=0.55, size = 4, colour = 'red') +
+  labs(x = 'Variables') +
+  coord_flip() +
+  theme_few()
+```
+
+En la gráfica anterior se observa que las variables Title y Fare se consideran las más importantes. Esto contradice al método de regresión logística que las consideraba no significativas. Por otra parte, la variable SibSp está clasificada en séptimo lugar; mientras en la regresión logística era estadísticamente significativa. Sin embargo, la variable Fsize clasifica mejor que las variables SibSp y Parch. Esto tiene sentido ya que Fsize es la discretización de la combinación de estas dos variables.
+
+******
+# Representacó de los resultados a partir de tablas y gráficas
+******
+
+Este apartado se ha ido desarrollando a lo largo de esta práctica en apartados anteriores, mediante diagramas de barras, boxplots, tablas, ...
+
+
+******
+# Resolución del problema
+******
+
+En este trabajo se trató de la problemática de determinar qué variables influyeron más sobre la supervivencia de los pasajeros a bordo del Titanic. Para llevar a cabo esta tarea se realizó se utilizó el conjunto de datos de entrenamiento y conjunto de datos de prueba.
+
+Sobre este conjunto de datos se realizó una fase de preprocesamiento que incluye varias tareas de limpieza de datos, (tales como, conversiones, eliminación los valores perdidos o nulos), discretización de valores numéricos, etc. En la imputación de valores perdidos se pueden destacar el trabajo realizado en la variable Edad (Age). Para la imputación de los valores perdidos de la característica edad (Age) se empleó el algoritmo MICE (Multivariate Imputation by Chained Equations) de R. Se realizaron pruebas estadísticas para comprobar las dependencias entre Supervivencia y otras variables categóricas del conjunto de datos. Se identifico que existen evidencias estadísticas de dependencias entre la Supervivencia y las variables categóricas: Sexo (Sex), Clase (Pclass), Tamaño de la familia (Fsize), Titulo(Title).
+
+
 
 
 
