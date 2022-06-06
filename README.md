@@ -4,6 +4,9 @@
 
 En esta práctica se elabora un caso práctico orientado a aprender a identificar los datos relevantes para un proyecto analítico y usar las herramientas de integración, limpieza, validación y análisis de las mismas.
 
+El dataset utilizado es “Titanic: Machine Learning from Disaster", que se encuentra publicado en la plataforma Kaggle (https://www.kaggle.com/c/titanic)
+
+
 ## Miembros del equipo
 
 La práctica ha sido realizada por Carlos Pérez Cebrián y Sandra Guillén Resina.
